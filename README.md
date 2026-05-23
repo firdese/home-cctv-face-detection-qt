@@ -27,3 +27,13 @@ flowchart LR
     UI --> LIVE_VIEW[Live View]
     UI --> PLAYBACK[Playback / Event History]
 ```
+
+## Implementation Plan
+
+1. Build the Qt desktop shell with live view, pipeline status, known faces, and event history.
+2. Add camera capture for USB webcam first, then extend to IP camera streams.
+3. Keep the latest frame in a shared frame buffer for the UI and processing pipeline.
+4. Add motion detection so the app only records or analyzes interesting frames.
+5. Add face detection, then face embedding and matching against known faces.
+6. Persist events, snapshots, and clips to local storage.
+7. Add alert rules for motion or unknown faces.
