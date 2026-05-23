@@ -1,12 +1,20 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
+#include "cameracapture.h"
+
+#include <QCheckBox>
+#include <QFileDialog>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
+#include <QPixmap>
 #include <QPushButton>
+#include <QSettings>
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -17,6 +25,12 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     buildDashboard();
+
+    cameraCapture = new CameraCapture(this);
+    connect(cameraCapture, &CameraCapture::frameReady, this, &MainWindow::displayFrame);
+    connect(cameraCapture, &CameraCapture::errorOccurred, this, &MainWindow::handleCameraError);
+
+    loadSettings();
 }
 
 MainWindow::~MainWindow()
@@ -49,6 +63,19 @@ void MainWindow::buildDashboard()
         "}"
     );
     leftColumn->addWidget(liveViewLabel, 1);
+
+    auto *sourceGroup = new QGroupBox("Video Source", centralWidget);
+    auto *sourceLayout = new QVBoxLayout(sourceGroup);
+    useVideoFileCheckBox = new QCheckBox("Use video file instead of camera", sourceGroup);
+    auto *videoPathLayout = new QHBoxLayout();
+    videoPathLineEdit = new QLineEdit(sourceGroup);
+    videoPathLineEdit->setPlaceholderText("C:/path/to/source-video.mp4");
+    auto *browseButton = new QPushButton("Browse", sourceGroup);
+    videoPathLayout->addWidget(videoPathLineEdit, 1);
+    videoPathLayout->addWidget(browseButton);
+    sourceLayout->addWidget(useVideoFileCheckBox);
+    sourceLayout->addLayout(videoPathLayout);
+    leftColumn->addWidget(sourceGroup);
 
     auto *controls = new QHBoxLayout();
     startButton = new QPushButton("Start Monitoring", centralWidget);
@@ -101,8 +128,64 @@ void MainWindow::buildDashboard()
     connect(stopButton, &QPushButton::clicked, this, [this]() {
         setMonitoringActive(false);
     });
+    connect(browseButton, &QPushButton::clicked, this, &MainWindow::browseVideoFile);
+    connect(useVideoFileCheckBox, &QCheckBox::toggled, this, [this]() {
+        saveSettings();
+    });
+    connect(videoPathLineEdit, &QLineEdit::editingFinished, this, [this]() {
+        saveSettings();
+    });
 
     statusBar()->showMessage("Ready");
+}
+
+void MainWindow::browseVideoFile()
+{
+    const QString filePath = QFileDialog::getOpenFileName(
+        this,
+        "Select Source Video",
+        videoPathLineEdit->text(),
+        "Video Files (*.mp4 *.avi *.mov *.mkv);;All Files (*)"
+    );
+
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    videoPathLineEdit->setText(filePath);
+    useVideoFileCheckBox->setChecked(true);
+    saveSettings();
+}
+
+void MainWindow::displayFrame(const QImage &frame)
+{
+    const QPixmap pixmap = QPixmap::fromImage(frame).scaled(
+        liveViewLabel->size(),
+        Qt::KeepAspectRatio,
+        Qt::SmoothTransformation
+    );
+    liveViewLabel->setPixmap(pixmap);
+}
+
+void MainWindow::handleCameraError(const QString &message)
+{
+    setMonitoringActive(false);
+    eventList->insertItem(0, message);
+    statusBar()->showMessage(message);
+}
+
+void MainWindow::loadSettings()
+{
+    QSettings settings("HomeCCTV", "FaceDetectionQt");
+    useVideoFileCheckBox->setChecked(settings.value("capture/useVideoFile", false).toBool());
+    videoPathLineEdit->setText(settings.value("capture/videoPath", "C:/opencv/sources/samples/data/vtest.avi").toString());
+}
+
+void MainWindow::saveSettings() const
+{
+    QSettings settings("HomeCCTV", "FaceDetectionQt");
+    settings.setValue("capture/useVideoFile", useVideoFileCheckBox->isChecked());
+    settings.setValue("capture/videoPath", videoPathLineEdit->text());
 }
 
 QLabel *MainWindow::createStatusPill(const QString &label, const QString &value)
@@ -121,6 +204,23 @@ QLabel *MainWindow::createStatusPill(const QString &label, const QString &value)
 
 void MainWindow::setMonitoringActive(bool active)
 {
+    if (active) {
+        saveSettings();
+
+        const bool useVideoFile = useVideoFileCheckBox->isChecked();
+        const bool started = useVideoFile
+            ? cameraCapture->startVideoFile(videoPathLineEdit->text(), true)
+            : cameraCapture->start();
+
+        if (!started) {
+            return;
+        }
+    }
+
+    if (!active) {
+        cameraCapture->stop();
+    }
+
     startButton->setEnabled(!active);
     stopButton->setEnabled(active);
 
@@ -128,7 +228,10 @@ void MainWindow::setMonitoringActive(bool active)
     motionStatusLabel->setText(active ? "Motion: Watching" : "Motion: Waiting");
     faceStatusLabel->setText(active ? "Face detection: Queued" : "Face detection: Waiting");
     matchStatusLabel->setText(active ? "Face matching: Standby" : "Face matching: Waiting");
-    liveViewLabel->setText(active ? "Monitoring active - camera module not connected yet" : "Camera feed will appear here");
+    if (!active) {
+        liveViewLabel->clear();
+        liveViewLabel->setText("Camera feed will appear here");
+    }
 
     eventList->insertItem(0, active ? "Monitoring started" : "Monitoring stopped");
     statusBar()->showMessage(active ? "Monitoring active" : "Ready");

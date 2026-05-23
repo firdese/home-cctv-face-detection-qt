@@ -37,3 +37,11 @@ flowchart LR
 5. Add face detection, then face embedding and matching against known faces.
 6. Persist events, snapshots, and clips to local storage.
 7. Add alert rules for motion or unknown faces.
+
+## Current Progress
+
+- Qt desktop dashboard is in place.
+- USB webcam capture is wired through OpenCV and shown in the live view.
+- The app currently opens camera index `0` when monitoring starts.
+- Video-file capture is available through the Video Source controls and loops at the end of the file.
+- Source settings are persisted with Qt `QSettings` under `capture/useVideoFile` and `capture/videoPath`.

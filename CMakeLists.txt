@@ -12,10 +12,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets LinguistTools)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools)
 
+if(NOT OpenCV_DIR AND EXISTS "C:/opencv/build/x64/vc16/lib/OpenCVConfig.cmake")
+    set(OpenCV_DIR "C:/opencv/build/x64/vc16/lib" CACHE PATH "OpenCV package configuration directory")
+endif()
+
+find_package(OpenCV REQUIRED COMPONENTS core imgproc videoio)
+
 set(TS_FILES home-cctv-face-detection-qt_ms_MY.ts)
 
 set(PROJECT_SOURCES
         main.cpp
+        cameracapture.cpp
+        cameracapture.h
         mainwindow.cpp
         mainwindow.h
         mainwindow.ui
@@ -49,7 +57,10 @@ else()
     qt5_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
 endif()
 
-target_link_libraries(home-cctv-face-detection-qt PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(home-cctv-face-detection-qt PRIVATE
+    Qt${QT_VERSION_MAJOR}::Widgets
+    ${OpenCV_LIBS}
+)
 
 set_target_properties(home-cctv-face-detection-qt PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com
@@ -65,4 +76,19 @@ install(TARGETS home-cctv-face-detection-qt
 
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(home-cctv-face-detection-qt)
+endif()
+
+if(WIN32)
+    set(OPENCV_RUNTIME_DIR "C:/opencv/build/x64/vc16/bin")
+    string(REPLACE "." "" OPENCV_VERSION_SUFFIX "${OpenCV_VERSION}")
+    set(OPENCV_RELEASE_DLL "${OPENCV_RUNTIME_DIR}/opencv_world${OPENCV_VERSION_SUFFIX}.dll")
+    set(OPENCV_DEBUG_DLL "${OPENCV_RUNTIME_DIR}/opencv_world${OPENCV_VERSION_SUFFIX}d.dll")
+
+    if(EXISTS "${OPENCV_RELEASE_DLL}" AND EXISTS "${OPENCV_DEBUG_DLL}")
+        add_custom_command(TARGET home-cctv-face-detection-qt POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<IF:$<CONFIG:Debug>,${OPENCV_DEBUG_DLL},${OPENCV_RELEASE_DLL}>"
+                "$<TARGET_FILE_DIR:home-cctv-face-detection-qt>"
+        )
+    endif()
 endif()
