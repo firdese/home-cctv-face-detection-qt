@@ -45,3 +45,4 @@ flowchart LR
 - The app currently opens camera index `0` when monitoring starts.
 - Video-file capture is available through the Video Source controls and loops at the end of the file.
 - Source settings are persisted with Qt `QSettings` under `capture/useVideoFile` and `capture/videoPath`.
+- MOG2 motion detection draws motion boxes on the live view and updates the motion pipeline status.

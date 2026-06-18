@@ -2,8 +2,10 @@
 #include "./ui_mainwindow.h"
 
 #include "cameracapture.h"
+#include "motiondetector.h"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QFileDialog>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -19,6 +21,10 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <vector>
+
+#include <opencv2/imgproc.hpp>
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -27,7 +33,8 @@ MainWindow::MainWindow(QWidget *parent)
     buildDashboard();
 
     cameraCapture = new CameraCapture(this);
-    connect(cameraCapture, &CameraCapture::frameReady, this, &MainWindow::displayFrame);
+    motionDetector = new MotionDetector();
+    connect(cameraCapture, &CameraCapture::frameReady, this, &MainWindow::processFrame);
     connect(cameraCapture, &CameraCapture::errorOccurred, this, &MainWindow::handleCameraError);
 
     loadSettings();
@@ -35,6 +42,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    delete motionDetector;
     delete ui;
 }
 
@@ -76,6 +84,13 @@ void MainWindow::buildDashboard()
     sourceLayout->addWidget(useVideoFileCheckBox);
     sourceLayout->addLayout(videoPathLayout);
     leftColumn->addWidget(sourceGroup);
+
+    auto *processingGroup = new QGroupBox("Processing", centralWidget);
+    auto *processingLayout = new QVBoxLayout(processingGroup);
+    processingModeComboBox = new QComboBox(processingGroup);
+    processingModeComboBox->addItem("MOG2 motion detection");
+    processingLayout->addWidget(processingModeComboBox);
+    leftColumn->addWidget(processingGroup);
 
     auto *controls = new QHBoxLayout();
     startButton = new QPushButton("Start Monitoring", centralWidget);
@@ -135,6 +150,9 @@ void MainWindow::buildDashboard()
     connect(videoPathLineEdit, &QLineEdit::editingFinished, this, [this]() {
         saveSettings();
     });
+    connect(processingModeComboBox, &QComboBox::currentTextChanged, this, [this]() {
+        saveSettings();
+    });
 
     statusBar()->showMessage("Ready");
 }
@@ -157,9 +175,31 @@ void MainWindow::browseVideoFile()
     saveSettings();
 }
 
-void MainWindow::displayFrame(const QImage &frame)
+void MainWindow::processFrame(const cv::Mat &frame)
 {
-    const QPixmap pixmap = QPixmap::fromImage(frame).scaled(
+    cv::Mat displayFrame = frame.clone();
+    const std::vector<cv::Rect> motionBoxes = motionDetector->detect(frame);
+
+    for (const cv::Rect &box : motionBoxes) {
+        cv::rectangle(displayFrame, box, cv::Scalar(0, 255, 255), 2);
+    }
+
+    motionStatusLabel->setText(motionBoxes.empty()
+        ? "Motion: Clear"
+        : QStringLiteral("Motion: %1 region(s)").arg(motionBoxes.size()));
+
+    cv::Mat rgbFrame;
+    cv::cvtColor(displayFrame, rgbFrame, cv::COLOR_BGR2RGB);
+
+    QImage image(
+        rgbFrame.data,
+        rgbFrame.cols,
+        rgbFrame.rows,
+        static_cast<int>(rgbFrame.step),
+        QImage::Format_RGB888
+    );
+
+    const QPixmap pixmap = QPixmap::fromImage(image.copy()).scaled(
         liveViewLabel->size(),
         Qt::KeepAspectRatio,
         Qt::SmoothTransformation
@@ -179,6 +219,7 @@ void MainWindow::loadSettings()
     QSettings settings("HomeCCTV", "FaceDetectionQt");
     useVideoFileCheckBox->setChecked(settings.value("capture/useVideoFile", false).toBool());
     videoPathLineEdit->setText(settings.value("capture/videoPath", "C:/opencv/sources/samples/data/vtest.avi").toString());
+    processingModeComboBox->setCurrentText(settings.value("processing/mode", "MOG2 motion detection").toString());
 }
 
 void MainWindow::saveSettings() const
@@ -186,6 +227,7 @@ void MainWindow::saveSettings() const
     QSettings settings("HomeCCTV", "FaceDetectionQt");
     settings.setValue("capture/useVideoFile", useVideoFileCheckBox->isChecked());
     settings.setValue("capture/videoPath", videoPathLineEdit->text());
+    settings.setValue("processing/mode", processingModeComboBox->currentText());
 }
 
 QLabel *MainWindow::createStatusPill(const QString &label, const QString &value)
@@ -206,6 +248,7 @@ void MainWindow::setMonitoringActive(bool active)
 {
     if (active) {
         saveSettings();
+        motionDetector->reset();
 
         const bool useVideoFile = useVideoFileCheckBox->isChecked();
         const bool started = useVideoFile

@@ -4,13 +4,15 @@
 #include <QMainWindow>
 
 class CameraCapture;
+class MotionDetector;
 class QCheckBox;
+class QComboBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
-class QImage;
 class QPushButton;
 class QString;
+namespace cv { class Mat; }
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -28,7 +30,7 @@ private:
     void buildDashboard();
     void browseVideoFile();
     QLabel *createStatusPill(const QString &label, const QString &value);
-    void displayFrame(const QImage &frame);
+    void processFrame(const cv::Mat &frame);
     void handleCameraError(const QString &message);
     void loadSettings();
     void saveSettings() const;
@@ -36,6 +38,8 @@ private:
 
     Ui::MainWindow *ui;
     CameraCapture *cameraCapture = nullptr;
+    MotionDetector *motionDetector = nullptr;
+    QComboBox *processingModeComboBox = nullptr;
     QCheckBox *useVideoFileCheckBox = nullptr;
     QLineEdit *videoPathLineEdit = nullptr;
     QLabel *liveViewLabel = nullptr;

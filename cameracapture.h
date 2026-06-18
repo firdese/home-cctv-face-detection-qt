@@ -2,10 +2,10 @@
 #define CAMERACAPTURE_H
 
 #include <QObject>
-#include <QImage>
 #include <QString>
 #include <QTimer>
 
+#include <opencv2/core/mat.hpp>
 #include <opencv2/videoio.hpp>
 
 class CameraCapture : public QObject
@@ -22,7 +22,7 @@ public:
     bool isRunning() const;
 
 signals:
-    void frameReady(const QImage &frame);
+    void frameReady(const cv::Mat &frame);
     void errorOccurred(const QString &message);
 
 private:

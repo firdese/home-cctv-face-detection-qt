@@ -16,7 +16,7 @@ if(NOT OpenCV_DIR AND EXISTS "C:/opencv/build/x64/vc16/lib/OpenCVConfig.cmake")
     set(OpenCV_DIR "C:/opencv/build/x64/vc16/lib" CACHE PATH "OpenCV package configuration directory")
 endif()
 
-find_package(OpenCV REQUIRED COMPONENTS core imgproc videoio)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc video videoio)
 
 set(TS_FILES home-cctv-face-detection-qt_ms_MY.ts)
 
@@ -26,6 +26,8 @@ set(PROJECT_SOURCES
         cameracapture.h
         mainwindow.cpp
         mainwindow.h
+        motiondetector.cpp
+        motiondetector.h
         mainwindow.ui
         ${TS_FILES}
 )

@@ -2,8 +2,6 @@
 
 #include <algorithm>
 
-#include <opencv2/imgproc.hpp>
-
 CameraCapture::CameraCapture(QObject *parent)
     : QObject(parent)
 {
@@ -91,18 +89,7 @@ void CameraCapture::grabFrame()
         }
     }
 
-    cv::Mat rgbFrame;
-    cv::cvtColor(frame, rgbFrame, cv::COLOR_BGR2RGB);
-
-    QImage image(
-        rgbFrame.data,
-        rgbFrame.cols,
-        rgbFrame.rows,
-        static_cast<int>(rgbFrame.step),
-        QImage::Format_RGB888
-    );
-
-    emit frameReady(image.copy());
+    emit frameReady(frame.clone());
 }
 
 void CameraCapture::updateFrameInterval()
